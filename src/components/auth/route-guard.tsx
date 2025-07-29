@@ -4,21 +4,21 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 
-export default function Home() {
+interface RouteGuardProps {
+  children: React.ReactNode
+}
+
+export function RouteGuard({ children }: RouteGuardProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.push('/dashboard')
-      } else {
-        router.push('/login')
-      }
+    if (!loading && !user) {
+      router.push('/login')
     }
   }, [user, loading, router])
 
-  // Show loading while determining where to redirect
+  // Show loading spinner while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -27,5 +27,11 @@ export default function Home() {
     )
   }
 
-  return null
+  // Show nothing if user is not authenticated (will redirect)
+  if (!user) {
+    return null
+  }
+
+  // Show protected content if user is authenticated
+  return <>{children}</>
 }

@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Sensitive files - don't commit these
+supabase-table-definitions.md
+
 # vercel
 .vercel
 
