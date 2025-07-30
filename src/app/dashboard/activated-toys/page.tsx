@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { RouteGuard } from '@/components/auth/route-guard'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { DataTable } from '@/components/ui/data-table'
@@ -31,11 +32,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 export default function ActivatedToysPage() {
+  const router = useRouter()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedToy, setSelectedToy] = useState<Toy | null>(null)
+  const [globalFilter, setGlobalFilter] = useState('')
 
   const { data: toysResponse, isLoading, error, refetch } = useActivatedToys()
   const createToyMutation = useCreateActivatedToy()
@@ -67,6 +70,28 @@ export default function ActivatedToysPage() {
     }
   }
 
+  // Get toys data with default empty array
+  const toys = useMemo(() => toysResponse?.data || [], [toysResponse?.data])
+
+  // Filter toys based on global filter
+  const filteredToys = useMemo(() => {
+    if (!globalFilter) return toys
+    
+    const lowerFilter = globalFilter.toLowerCase()
+    return toys.filter(toy => {
+      // Search in kid_name
+      if (toy.kid_name?.toLowerCase().includes(lowerFilter)) return true
+      // Search in toy_mac_id
+      if (toy.toy_mac_id?.toLowerCase().includes(lowerFilter)) return true
+      // Search in activation_code
+      if (toy.activation_code?.toLowerCase().includes(lowerFilter)) return true
+      // Search in parent name
+      if (toy.parent_profiles?.parent_name?.toLowerCase().includes(lowerFilter)) return true
+      
+      return false
+    })
+  }, [toys, globalFilter])
+
   const columns: ColumnDef<Toy>[] = [
     {
       accessorKey: 'name',
@@ -81,6 +106,49 @@ export default function ActivatedToysPage() {
       cell: ({ row }) => {
         const kidName = row.getValue('kid_name') as string
         return kidName || <span className="text-muted-foreground">-</span>
+      },
+    },
+    {
+      accessorKey: 'kid_age',
+      header: 'Age',
+      cell: ({ row }) => {
+        const age = row.getValue('kid_age') as number
+        return age ? `${age} years` : <span className="text-muted-foreground">-</span>
+      },
+    },
+    {
+      accessorKey: 'DOB',
+      header: 'Birthday',
+      cell: ({ row }) => {
+        const dob = row.getValue('DOB') as string
+        return dob ? new Date(dob).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        }) : <span className="text-muted-foreground">-</span>
+      },
+    },
+    {
+      accessorKey: 'parent_profiles.parent_name',
+      header: 'Parent',
+      cell: ({ row }) => {
+        const toy = row.original
+        const parentName = toy.parent_profiles?.parent_name
+        const parentId = toy.parent_profiles?.id
+        
+        if (!parentName || !parentId) {
+          return <span className="text-muted-foreground">-</span>
+        }
+        
+        return (
+          <Button
+            variant="link"
+            className="p-0 h-auto font-normal text-primary hover:underline"
+            onClick={() => router.push(`/dashboard/parents/${parentId}`)}
+          >
+            {parentName}
+          </Button>
+        )
       },
     },
     {
@@ -186,8 +254,6 @@ export default function ActivatedToysPage() {
     )
   }
 
-  const toys = toysResponse.data || []
-
   return (
     <RouteGuard>
       <DashboardLayout>
@@ -223,9 +289,10 @@ export default function ActivatedToysPage() {
 
           <DataTable
             columns={columns}
-            data={toys}
-            searchKey="name"
-            searchPlaceholder="Search by toy name..."
+            data={filteredToys}
+            globalFilter={globalFilter}
+            onGlobalFilterChange={setGlobalFilter}
+            searchPlaceholder="Search by kid name, MAC ID, activation code, or parent name..."
           />
 
           {/* View Details Dialog */}
@@ -273,6 +340,10 @@ export default function ActivatedToysPage() {
                     <div>
                       <label className="text-sm font-medium">MAC ID</label>
                       <p className="text-sm text-muted-foreground font-mono">{selectedToy.toy_mac_id || 'Not set'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Parent Name</label>
+                      <p className="text-sm text-muted-foreground">{selectedToy.parent_profiles?.parent_name || 'Not set'}</p>
                     </div>
                   </div>
                   {selectedToy.additional_instructions && (

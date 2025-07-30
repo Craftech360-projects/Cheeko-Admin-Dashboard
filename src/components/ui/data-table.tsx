@@ -37,6 +37,8 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   searchKey?: string
   searchPlaceholder?: string
+  globalFilter?: string
+  onGlobalFilterChange?: (value: string) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -44,9 +46,12 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   searchPlaceholder = "Search...",
+  globalFilter,
+  onGlobalFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [internalGlobalFilter, setInternalGlobalFilter] = useState('')
 
   const table = useReactTable({
     data,
@@ -57,24 +62,34 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: onGlobalFilterChange || setInternalGlobalFilter,
     state: {
       sorting,
       columnFilters,
+      globalFilter: globalFilter !== undefined ? globalFilter : internalGlobalFilter,
     },
   })
 
   return (
     <div className="space-y-4">
       {/* Search */}
-      {searchKey && (
+      {(searchKey || onGlobalFilterChange) && (
         <div className="flex items-center gap-2 max-w-sm">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
-            value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn(searchKey)?.setFilterValue(event.target.value)
+            value={
+              onGlobalFilterChange 
+                ? (globalFilter ?? internalGlobalFilter ?? "")
+                : (table.getColumn(searchKey!)?.getFilterValue() as string) ?? ""
             }
+            onChange={(event) => {
+              if (onGlobalFilterChange) {
+                onGlobalFilterChange(event.target.value)
+              } else if (searchKey) {
+                table.getColumn(searchKey)?.setFilterValue(event.target.value)
+              }
+            }}
           />
         </div>
       )}

@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { useCreateToy } from '@/hooks/use-mqtt-auth'
 import type { CreateMqttAuthData } from '@/types/database'
 
@@ -15,8 +14,6 @@ interface CreateToyFormProps {
 
 export function CreateToyForm({ onSuccess, isLoading }: CreateToyFormProps) {
   const [macId, setMacId] = useState('')
-  const [isActive, setIsActive] = useState(false)
-  const [activationCode, setActivationCode] = useState('')
   const [error, setError] = useState('')
 
   const createToyMutation = useCreateToy()
@@ -25,10 +22,14 @@ export function CreateToyForm({ onSuccess, isLoading }: CreateToyFormProps) {
     e.preventDefault()
     setError('')
 
+    // Validate Mac ID is provided
+    if (!macId.trim()) {
+      setError('MAC ID is required')
+      return
+    }
+
     const toyData: CreateMqttAuthData = {
-      ...(macId && { mac_id: macId }),
-      is_active: isActive,
-      ...(activationCode && { activation_code: activationCode }),
+      mac_id: macId.trim()
     }
 
     try {
@@ -48,41 +49,18 @@ export function CreateToyForm({ onSuccess, isLoading }: CreateToyFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="mac_id">MAC ID (optional)</Label>
+        <Label htmlFor="mac_id">MAC ID <span className="text-red-500">*</span></Label>
         <Input
           id="mac_id"
-          placeholder="Leave empty to auto-generate"
+          placeholder="Enter MAC ID"
           value={macId}
           onChange={(e) => setMacId(e.target.value)}
           disabled={isLoading}
+          required
         />
         <p className="text-sm text-muted-foreground">
-          If not provided, a MAC ID will be generated automatically
+          A unique 6-digit activation code will be auto-generated for this toy
         </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="activation_code">Activation Code (optional)</Label>
-        <Input
-          id="activation_code"
-          placeholder="Leave empty to auto-generate"
-          value={activationCode}
-          onChange={(e) => setActivationCode(e.target.value)}
-          disabled={isLoading}
-        />
-        <p className="text-sm text-muted-foreground">
-          If not provided, an activation code will be generated automatically
-        </p>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="is_active"
-          checked={isActive}
-          onCheckedChange={setIsActive}
-          disabled={isLoading}
-        />
-        <Label htmlFor="is_active">Active</Label>
       </div>
 
       {error && (

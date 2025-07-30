@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { RouteGuard } from '@/components/auth/route-guard'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { DataTable } from '@/components/ui/data-table'
@@ -34,6 +34,7 @@ export default function ParentProfilesPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<ParentProfile | null>(null)
+  const [globalFilter, setGlobalFilter] = useState('')
 
   const { data: profilesResponse, isLoading, error, refetch } = useParentProfiles()
   const createProfileMutation = useCreateParentProfile()
@@ -59,6 +60,26 @@ export default function ParentProfilesPage() {
       setSelectedProfile(null)
     }
   }
+
+  // Get profiles data with default empty array
+  const profiles = useMemo(() => profilesResponse?.data || [], [profilesResponse?.data])
+
+  // Filter profiles based on global filter
+  const filteredProfiles = useMemo(() => {
+    if (!globalFilter) return profiles
+    
+    const lowerFilter = globalFilter.toLowerCase()
+    return profiles.filter(profile => {
+      // Search in parent name
+      if (profile.parent_name?.toLowerCase().includes(lowerFilter)) return true
+      // Search in parent email
+      if (profile.parent_email?.toLowerCase().includes(lowerFilter)) return true
+      // Search in parent phone number
+      if (profile.parent_phone_number?.toLowerCase().includes(lowerFilter)) return true
+      
+      return false
+    })
+  }, [profiles, globalFilter])
 
   const columns: ColumnDef<ParentProfile>[] = [
     {
@@ -179,8 +200,6 @@ export default function ParentProfilesPage() {
     )
   }
 
-  const profiles = profilesResponse.data || []
-
   return (
     <RouteGuard>
       <DashboardLayout>
@@ -216,9 +235,10 @@ export default function ParentProfilesPage() {
 
           <DataTable
             columns={columns}
-            data={profiles}
-            searchKey="parent_name"
-            searchPlaceholder="Search by parent name..."
+            data={filteredProfiles}
+            globalFilter={globalFilter}
+            onGlobalFilterChange={setGlobalFilter}
+            searchPlaceholder="Search by name, email, or phone..."
           />
 
           {/* Edit Dialog */}

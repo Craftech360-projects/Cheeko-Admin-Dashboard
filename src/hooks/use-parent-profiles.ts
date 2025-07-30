@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getParentProfiles,
+  getParentProfileById,
   createParentProfile,
   updateParentProfile,
   deleteParentProfile
@@ -13,6 +14,14 @@ export function useParentProfiles() {
   return useQuery({
     queryKey: [QUERY_KEY],
     queryFn: getParentProfiles,
+  })
+}
+
+export function useParentProfile(id: string) {
+  return useQuery({
+    queryKey: [QUERY_KEY, id],
+    queryFn: () => getParentProfileById(id),
+    enabled: !!id,
   })
 }
 

@@ -21,6 +21,7 @@ export interface Toy {
   kid_age: number | null
   DOB: string
   additional_instructions: string | null
+  parent_profiles?: ParentProfile | null
 }
 
 export interface ParentProfile {

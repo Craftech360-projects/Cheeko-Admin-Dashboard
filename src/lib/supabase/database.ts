@@ -47,9 +47,29 @@ function generateMacId(): string {
   return mac
 }
 
-// Generate a random activation code
-function generateActivationCode(): string {
-  return Math.random().toString(36).substring(2, 10).toUpperCase()
+// Generate a unique 6-digit activation code
+async function generateUniqueActivationCode(): Promise<string> {
+  let code: string
+  let isUnique = false
+  
+  while (!isUnique) {
+    // Generate a 6-digit numeric code
+    code = Math.floor(100000 + Math.random() * 900000).toString()
+    
+    // Check if the code already exists in the database
+    const { data } = await supabase
+      .from('mqtt_auth')
+      .select('activation_code')
+      .eq('activation_code', code)
+      .single()
+    
+    // If no data returned, the code is unique
+    if (!data) {
+      isUnique = true
+    }
+  }
+  
+  return code!
 }
 
 // Generate password hash (simplified for demo - use proper hashing in production)
@@ -71,11 +91,14 @@ export async function getAllToys(): Promise<ApiResponse<MqttAuth[]>> {
 }
 
 export async function createToy(toyData: CreateMqttAuthData = {}): Promise<ApiResponse<MqttAuth>> {
+  // Generate unique activation code if not provided
+  const activationCode = toyData.activation_code || await generateUniqueActivationCode()
+  
   const newToy = {
     mac_id: toyData.mac_id || generateMacId(),
     password_hash: toyData.password_hash || generatePasswordHash(toyData.mac_id || 'default'),
-    is_active: toyData.is_active ?? false,
-    activation_code: toyData.activation_code || generateActivationCode()
+    is_active: false, // Always set to false by default
+    activation_code: activationCode
   }
 
   const { data, error } = await supabase
@@ -112,12 +135,50 @@ export async function deleteToy(macId: string): Promise<ApiResponse<void>> {
 // ============================================================================
 
 export async function getActivatedToys(): Promise<ApiResponse<Toy[]>> {
-  const { data, error } = await supabase
+  // First, get all toys
+  const { data: toys, error: toysError } = await supabase
     .from('toys')
     .select('*')
     .order('created_at', { ascending: false })
   
-  return handleSupabaseResponse(data, error)
+  if (toysError) {
+    return handleSupabaseResponse<Toy[]>(null, toysError)
+  }
+
+  if (!toys || toys.length === 0) {
+    return handleSupabaseResponse<Toy[]>(toys || [], null)
+  }
+
+  // Get unique user IDs from toys
+  const userIds = [...new Set(toys.map(toy => toy.user_id).filter(Boolean))]
+  
+  if (userIds.length === 0) {
+    // No user IDs to fetch parent profiles for
+    return handleSupabaseResponse(toys.map(toy => ({ ...toy, parent_profiles: null })), null)
+  }
+
+  // Fetch parent profiles for those user IDs
+  const { data: parentProfiles, error: profilesError } = await supabase
+    .from('parent_profiles')
+    .select('*')
+    .in('user_id', userIds)
+
+  if (profilesError) {
+    console.error('Error fetching parent profiles:', profilesError)
+    // Return toys without parent profiles on error
+    return handleSupabaseResponse(toys.map(toy => ({ ...toy, parent_profiles: null })), null)
+  }
+
+  // Create a map of user_id to parent profile
+  const profileMap = new Map(parentProfiles?.map(profile => [profile.user_id, profile]) || [])
+
+  // Combine toys with their parent profiles
+  const toysWithProfiles = toys.map(toy => ({
+    ...toy,
+    parent_profiles: toy.user_id ? profileMap.get(toy.user_id) || null : null
+  }))
+
+  return handleSupabaseResponse(toysWithProfiles, null)
 }
 
 export async function createActivatedToy(toyData: CreateToyData): Promise<ApiResponse<Toy>> {
@@ -159,6 +220,16 @@ export async function getParentProfiles(): Promise<ApiResponse<ParentProfile[]>>
     .from('parent_profiles')
     .select('*')
     .order('created_at', { ascending: false })
+  
+  return handleSupabaseResponse(data, error)
+}
+
+export async function getParentProfileById(id: string): Promise<ApiResponse<ParentProfile>> {
+  const { data, error } = await supabase
+    .from('parent_profiles')
+    .select('*')
+    .eq('id', id)
+    .single()
   
   return handleSupabaseResponse(data, error)
 }
